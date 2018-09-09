@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/")
-class SearchController(private val twitterService: TwitterService) {
+class TwitterController(private val twitterService: TwitterService) {
 
     @GetMapping(path = arrayOf("tweet"))
     fun searchTweet(@RequestParam search: String): TweetResults {
@@ -23,6 +23,11 @@ class SearchController(private val twitterService: TwitterService) {
     @GetMapping(path = arrayOf("retweet"))
     fun retweet(): TweetResults {
         return twitterService.retweet()
+    }
+
+    @GetMapping(path = arrayOf("delete"))
+    fun deleteAll() {
+        twitterService.deleteAll()
     }
 
 }

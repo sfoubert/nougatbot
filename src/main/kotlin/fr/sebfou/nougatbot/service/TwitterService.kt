@@ -3,7 +3,8 @@ package fr.sebfou.nougatbot.service
 import fr.sebfou.nougatbot.model.TweetResults
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.social.ResourceNotFoundException
+import org.springframework.social.twitter.api.CursoredList
 import org.springframework.social.twitter.api.SearchParameters
 import org.springframework.social.twitter.api.SearchResults
 import org.springframework.social.twitter.api.Tweet
@@ -11,6 +12,7 @@ import org.springframework.social.twitter.api.impl.TwitterTemplate
 import org.springframework.stereotype.Service
 import java.util.regex.Matcher
 import java.util.regex.Pattern
+import kotlin.reflect.KFunction0
 
 /**
  * Created by seb_f on 18/02/2018.
@@ -20,6 +22,7 @@ class TwitterService(private val twitterTemplate: TwitterTemplate) {
 
     private final val LOGGER = LoggerFactory.getLogger(TwitterService::class.java)
     private final val FOLLOW_PATTERN = "@\\s*(\\w+)"
+    private final val LANG_FR = "fr"
 
     @Value("\${app.nbTweets}")
     private val nbTweets = 0
@@ -35,10 +38,9 @@ class TwitterService(private val twitterTemplate: TwitterTemplate) {
         return TweetResults(tweets, count, search)
     }
 
-    @Scheduled(cron = "\${app.retweet.cron}")
     fun retweet(): TweetResults {
         val count = nbTweets
-        var search = "Concours #RT OR #Follow"
+        var search = "Concours AND (#RT OR #Follow) -Fortnite"
 
         val tweets = searchTweets(search, count)
         for (tweet in tweets) {
@@ -55,7 +57,7 @@ class TwitterService(private val twitterTemplate: TwitterTemplate) {
     private fun searchTweets(search: String, count: Int): List<Tweet> {
         val results: SearchResults = twitterTemplate.searchOperations().search(
                 SearchParameters(search)
-                        .lang("fr")
+                        .lang(LANG_FR)
                         .resultType(SearchParameters.ResultType.RECENT)
                         .count(count))
         return results.tweets
@@ -67,6 +69,7 @@ class TwitterService(private val twitterTemplate: TwitterTemplate) {
     }
 
     private fun hasAlreadyBeenRetweet(tweet: Tweet): Boolean {
+        // LOGGER.debug("Tweet : " + tweet.id + " All Tweets: " + twitterTemplate.timelineOperations().homeTimeline.map { t -> t.id } )
         return twitterTemplate.timelineOperations().homeTimeline
                 .filter { t -> tweet.id == t.id }.isNotEmpty()
     }
@@ -76,6 +79,47 @@ class TwitterService(private val twitterTemplate: TwitterTemplate) {
         while (matcher.find()) {
             LOGGER.debug("Follow: @" + matcher.group(1))
             twitterTemplate.friendOperations().follow("@" + matcher.group(1))
+        }
+    }
+
+    fun deleteAll() {
+        deleteAllStatus()
+        unfollowFriends()
+    }
+
+    private fun deleteAllStatus() {
+        val tweets = twitterTemplate.timelineOperations().getUserTimeline()
+        while (tweets.size > 0) {
+            tweets.forEach { t -> twitterTemplate.timelineOperations().deleteStatus(t.id) }
+            deleteAll()
+        }
+    }
+
+    private fun deleteOldStatus() {
+        val tweets = twitterTemplate.timelineOperations().getUserTimeline()
+        while (tweets.size > 0) {
+            tweets.forEach { t -> twitterTemplate.timelineOperations().deleteStatus(t.id) }
+            deleteAll()
+        }
+    }
+
+    private fun unfollowFriends() {
+        val friendIds: CursoredList<Long> = twitterTemplate.friendOperations().getFriendIds()
+        unFollow(friendIds, this::unfollowFriends)
+    }
+
+    private fun unFollow(ids: CursoredList<Long>, recursiveFn: KFunction0<Unit>) {
+        while (ids.size > 0) {
+            ids.forEach { id ->
+                run {
+                    try {
+                        twitterTemplate.friendOperations().unfollow(id)
+                    } catch (e: ResourceNotFoundException) {
+                        LOGGER.warn(e.message)
+                    }
+                }
+            }
+            recursiveFn()
         }
     }
 }
