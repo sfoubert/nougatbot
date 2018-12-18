@@ -88,38 +88,30 @@ class TwitterService(private val twitterTemplate: TwitterTemplate) {
     }
 
     private fun deleteAllStatus() {
-        val tweets = twitterTemplate.timelineOperations().getUserTimeline()
-        while (tweets.size > 0) {
-            tweets.forEach { t -> twitterTemplate.timelineOperations().deleteStatus(t.id) }
-            deleteAll()
-        }
-    }
-
-    private fun deleteOldStatus() {
-        val tweets = twitterTemplate.timelineOperations().getUserTimeline()
-        while (tweets.size > 0) {
-            tweets.forEach { t -> twitterTemplate.timelineOperations().deleteStatus(t.id) }
-            deleteAll()
+        val tweets = twitterTemplate.timelineOperations().userTimeline
+        tweets.forEach { t -> twitterTemplate.timelineOperations().deleteStatus(t.id) }
+        if (!tweets.isEmpty()) {
+            deleteAllStatus()
         }
     }
 
     private fun unfollowFriends() {
-        val friendIds: CursoredList<Long> = twitterTemplate.friendOperations().getFriendIds()
-        unFollow(friendIds, this::unfollowFriends)
+        val friendIds: CursoredList<Long> = twitterTemplate.friendOperations().friendIds
+        if (!friendIds.isEmpty()) {
+            unFollow(friendIds)
+            unfollowFriends()
+        }
     }
 
-    private fun unFollow(ids: CursoredList<Long>, recursiveFn: KFunction0<Unit>) {
-        while (ids.size > 0) {
-            ids.forEach { id ->
-                run {
-                    try {
-                        twitterTemplate.friendOperations().unfollow(id)
-                    } catch (e: ResourceNotFoundException) {
-                        LOGGER.warn(e.message)
-                    }
+    private fun unFollow(ids: CursoredList<Long>) {
+        ids.forEach { id ->
+            run {
+                try {
+                    twitterTemplate.friendOperations().unfollow(id)
+                } catch (e: ResourceNotFoundException) {
+                    LOGGER.warn(e.message)
                 }
             }
-            recursiveFn()
         }
     }
 }

@@ -1,6 +1,7 @@
 package fr.sebfou.nougatbot.service
 
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.InjectMocks
@@ -33,6 +34,8 @@ class TwitterServiceTest {
     @Mock
     lateinit var friendOperations: FriendOperations
 
+    val sampleTweets: MutableList<Tweet> = mutableListOf(Tweet(0L, "@seb_fou", null, null, null, null, 0L, null, null))
+
     @Before
     fun init() {
         val emptyList = emptyList<Tweet>()
@@ -58,8 +61,7 @@ class TwitterServiceTest {
     @Test
     fun test_retweet() {
         // Given
-        var tweets: MutableList<Tweet> = mutableListOf(Tweet(0L, "@seb_fou", null, null, null, null, 0L, null, null))
-        var results = SearchResults(tweets, null)
+        val results = SearchResults(sampleTweets, null)
         `when`(searchOperations.search(any(SearchParameters::class.java))).thenReturn(results)
         `when`(timelineOperations.homeTimeline).thenReturn(emptyList())
         `when`(twitterTemplate.searchOperations()).thenReturn(searchOperations)
@@ -74,5 +76,25 @@ class TwitterServiceTest {
         verify(searchOperations).search(any(SearchParameters::class.java))
         verify(timelineOperations).retweet(anyLong())
         verify(friendOperations).follow("@seb_fou")
+    }
+
+    @Test
+    fun test_deleteAll() {
+        // Given
+        `when`(timelineOperations.userTimeline)
+                .thenReturn(sampleTweets)
+                .thenReturn(emptyList())
+        `when`(twitterTemplate.timelineOperations()).thenReturn(timelineOperations)
+        `when`(friendOperations.friendIds)
+                .thenReturn(CursoredList(listOf(0L), 0, 10))
+                .thenReturn(CursoredList(emptyList(), 0, 10))
+        `when`(twitterTemplate.friendOperations()).thenReturn(friendOperations)
+
+        // When
+        twitterService.deleteAll()
+
+        // Then
+        verify(timelineOperations).deleteStatus(anyLong())
+        verify(friendOperations).unfollow(anyLong())
     }
 }
